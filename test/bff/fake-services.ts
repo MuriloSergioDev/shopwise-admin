@@ -171,16 +171,6 @@ function catalog(call: UpstreamCall): UpstreamReply | undefined {
   switch (route) {
     case 'GET /api/categories':
       return ok({ data: [{ id: '01apparel', slug: 'apparel', name: 'Apparel', parentId: null }] })
-    case 'GET /api/products':
-      return ok({
-        data: [{ id: product.id, slug: product.slug, name: product.name, category: product.category, image: null }],
-        meta: { page: 1, perPage: 24, total: 1, lastPage: 1 },
-        facets: { categories: [], options: [] },
-      })
-    case `GET /api/products/${product.slug}`:
-      return ok({ data: { ...product, status: 'published' } })
-    case 'GET /api/products/missing':
-      return { status: 404, body: { message: 'Not found.' } }
   }
   if (!call.path.startsWith('/api/admin/')) {
     return undefined
@@ -188,6 +178,31 @@ function catalog(call: UpstreamCall): UpstreamReply | undefined {
   const denied = adminGuard(call)
   if (denied) {
     return denied
+  }
+  if (route === 'GET /api/admin/products') {
+    return ok({
+      data: [
+        {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          category: product.category,
+          image: null,
+          status: state.published ? 'published' : 'draft',
+          publishedAt: null,
+          variantCount: 2,
+          activeVariantCount: 1,
+          updatedAt: '2026-10-26T00:00:00Z',
+        },
+      ],
+      meta: { page: 1, perPage: 25, total: 1, lastPage: 1 },
+    })
+  }
+  if (route === `GET /api/admin/products/${product.id}`) {
+    return ok({ data: product })
+  }
+  if (route === 'GET /api/admin/products/missing') {
+    return { status: 404, body: { message: 'Not found.' } }
   }
   if (route === 'POST /api/admin/products') {
     if (call.body?.slug === 'taken') {

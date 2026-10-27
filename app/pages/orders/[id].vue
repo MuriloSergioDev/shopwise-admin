@@ -76,6 +76,9 @@ async function ship() {
               </p>
               <p class="text-muted">Shipped {{ new Date(order.shipment.shippedAt).toLocaleString('en-US') }}</p>
             </div>
+            <p v-else-if="order.status === 'cancelled'" class="text-sm text-muted" data-test="cancelled">
+              Cancelled by checkout (its order step timed out and was undone). A cancelled order cannot be shipped.
+            </p>
             <UForm v-else :state="shipment" :validate="validate" class="space-y-2" @submit="ship">
               <UFormField label="Carrier" name="carrier">
                 <UInput v-model="shipment.carrier" placeholder="UPS" class="w-full" />

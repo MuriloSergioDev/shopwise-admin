@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FormError } from '@nuxt/ui'
-import type { CreateProductInput, Product, Variant } from '#shared/types/contracts'
+import type { CreateProductInput } from '#shared/types/contracts'
 
 useSeoMeta({ title: 'New product · Shopwise admin' })
 
@@ -23,9 +23,6 @@ const form = reactive({
 })
 const errorMessage = ref<string>()
 const submitting = ref(false)
-/** The draft just created; catalog cannot list drafts yet, so this is the one place to publish it. */
-const draft = ref<Product>()
-const publishing = ref(false)
 
 /** The form as catalog's create input, or the errors to show (variant fields are named `variants.<n>.<field>`). */
 function toInput(): { input: CreateProductInput | null; errors: FormError[] } {
@@ -68,46 +65,15 @@ async function onSubmit() {
   errorMessage.value = undefined
   submitting.value = true
   try {
-    draft.value = await createProduct(input)
-    toast.add({ title: `Draft ${draft.value.name} created`, icon: 'i-lucide-check' })
+    const draft = await createProduct(input)
+    toast.add({ title: `Draft ${draft.name} created`, icon: 'i-lucide-check' })
+    // Its page sets prices and publishes it.
+    await navigateTo(`/products/${draft.id}`)
   } catch (error) {
     errorMessage.value = errorMessageOf(error, 'Could not create the product.')
   } finally {
     submitting.value = false
   }
-}
-
-async function publish() {
-  if (!draft.value) {
-    return
-  }
-  publishing.value = true
-  try {
-    const published = await publishProduct(draft.value.id)
-    toast.add({ title: `${published.name} is live`, icon: 'i-lucide-rocket' })
-    await navigateTo(`/products/${published.slug}`)
-  } catch (error) {
-    toast.add({ title: errorMessageOf(error, 'Could not publish.'), color: 'error', icon: 'i-lucide-circle-alert' })
-  } finally {
-    publishing.value = false
-  }
-}
-
-function replaceVariant(updated: Variant) {
-  if (draft.value) {
-    draft.value.variants = draft.value.variants.map((variant) => (variant.id === updated.id ? updated : variant))
-  }
-}
-
-function startOver() {
-  draft.value = undefined
-  Object.assign(form, {
-    name: '',
-    slug: '',
-    description: '',
-    categoryId: '',
-    variants: [{ sku: '', name: '', options: '' }],
-  })
 }
 </script>
 
@@ -118,20 +84,7 @@ function startOver() {
     </template>
 
     <template #body>
-      <UPageCard
-        v-if="draft"
-        :title="draft.name"
-        description="Draft created. Set prices, then publish it."
-        variant="subtle"
-      >
-        <VariantTable :variants="draft.variants" @updated="replaceVariant" />
-        <div class="flex gap-2">
-          <UButton icon="i-lucide-rocket" label="Publish" :loading="publishing" @click="publish" />
-          <UButton color="neutral" variant="ghost" label="Create another" @click="startOver" />
-        </div>
-      </UPageCard>
-
-      <UForm v-else :state="form" :validate="validate" class="max-w-3xl space-y-4" @submit="onSubmit">
+      <UForm :state="form" :validate="validate" class="max-w-3xl space-y-4" @submit="onSubmit">
         <UFormField label="Name" name="name" required>
           <UInput v-model="form.name" class="w-full" />
         </UFormField>

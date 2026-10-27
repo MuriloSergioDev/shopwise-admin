@@ -7,8 +7,9 @@ export type Category = CatalogSchemas['Category']
 export type ProductSummary = CatalogSchemas['ProductSummary']
 export type Product = CatalogSchemas['Product']
 export type Variant = CatalogSchemas['Variant']
-export type ProductSearchResult =
-  CatalogApi.operations['searchProducts']['responses'][200]['content']['application/json']
+export type AdminProductSummary = CatalogSchemas['AdminProductSummary']
+export type AdminProductPage =
+  CatalogApi.operations['listAdminProducts']['responses'][200]['content']['application/json']
 export type CreateProductInput = CatalogApi.operations['createProduct']['requestBody']['content']['application/json']
 export type UpdateVariantInput = CatalogApi.operations['updateVariant']['requestBody']['content']['application/json']
 

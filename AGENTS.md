@@ -23,7 +23,7 @@ Nuxt 4 (`app/`, `server/`, `shared/`), Nuxt UI 4 dashboard layout (Tailwind 4), 
 - `server/middleware/admin-session.ts` — the server-side role gate and the page-request refresh.
 - `shared/utils/schemas.ts` — zod input schemas mirroring the contracts; the BFF and the forms both use them.
 - `app/composables/` — `useFetch` wrappers with stable keys plus the write actions (`createProduct`, `setPrice`, …).
-- `app/pages/` — `index` (overview), `products/index`, `products/new`, `products/[slug]`, `coupons`, `orders/index`,
+- `app/pages/` — `index` (overview), `products/index`, `products/new`, `products/[id]` (publish a draft, all variants), `coupons`, `orders/index`,
   `orders/[id]` (mark shipped), `inventory/index` (counts in place, low-stock filter), `inventory/[sku]`
   (reservations), `login`. List pages keep their filters in the URL query.
   `app/middleware/auth.global.ts` sends signed-out visitors to `/login` (navigation only, not security).
@@ -31,11 +31,12 @@ Nuxt 4 (`app/`, `server/`, `shared/`), Nuxt UI 4 dashboard layout (Tailwind 4), 
 - `server/utils/query.ts` — `compactQuery` drops unset filters before they go to a service.
 
 BFF routes (all admin-only except `/api/auth/*`):
-`POST /api/auth/{login,logout}`, `GET /api/catalog/categories`, `GET /api/catalog/products?q=&page=&perPage=`,
-`GET /api/catalog/products/{slug}`, `POST /api/catalog/products`, `POST /api/catalog/products/{id}/publish`,
+`POST /api/auth/{login,logout}`, `GET /api/catalog/categories`, `GET /api/catalog/products?q=&status=&category=&page=&perPage=`
+(catalog's admin listing: drafts included), `GET /api/catalog/products/{id}` (any status, inactive variants too), `POST /api/catalog/products`, `POST /api/catalog/products/{id}/publish`,
 `PATCH /api/catalog/variants/{id}`, `GET /api/pricing/prices?skus[]=`, `PUT /api/pricing/prices/{sku}`,
 `GET|POST /api/pricing/coupons`, `DELETE /api/pricing/coupons/{code}` (pricing deactivates it),
-`GET /api/orders?status=&q=&page=&perPage=`, `GET /api/orders/{id}`, `PUT /api/orders/{id}/shipment`
+`GET /api/orders?status=&q=&page=&perPage=` (status `placed`, `shipped` or `cancelled`; a cancelled order
+cannot be shipped), `GET /api/orders/{id}`, `PUT /api/orders/{id}/shipment`
 (`{carrier, trackingNumber}`; the same values again are a no-op, different ones 409), `GET /api/inventory/stock?q=&lowStock=&page=&perPage=`,
 `GET /api/inventory/stock/{sku}` (with open reservations), `PUT /api/inventory/stock/{sku}` (`{onHand}`, a count,
 not a delta; below the reserved units is a 422 on `onHand`).
@@ -58,14 +59,6 @@ not a delta; below the reserved units is a 422 on `onHand`).
   (`shared/utils/money.ts`). The store sells in USD only.
 - **Writes must be safe to repeat** (`asAdmin` retries once after a 401): every admin write here is a set, not an
   increment. Keep it that way, or don't route the write through the retry.
-
-## Known gaps (catalog contract)
-
-Catalog has no admin read endpoints. The product list is the public search (published products only) and the
-product page is the public detail by slug (active variants only). So a draft is visible only on the create page
-right after creating it (publish it there), and a deactivated variant disappears from the product page after a
-reload. Fix: add `GET /api/admin/products` (all statuses) and `GET /api/admin/products/{id}` (all variants) to the
-catalog contract and service, then point the BFF's list/detail routes at them.
 
 ## Run
 

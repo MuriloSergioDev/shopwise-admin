@@ -6,7 +6,9 @@ const router = useRouter()
 
 // All list state lives in the URL query, so a reload or a shared link shows the same page.
 const status = computed(() =>
-  route.query.status === 'placed' || route.query.status === 'shipped' ? route.query.status : undefined,
+  typeof route.query.status === 'string' && ['placed', 'shipped', 'cancelled'].includes(route.query.status)
+    ? route.query.status
+    : undefined,
 )
 const query = computed(() => ({
   ...(status.value ? { status: status.value } : {}),
@@ -20,6 +22,7 @@ const statusItems = [
   { label: 'All', value: 'all' },
   { label: 'To ship', value: 'placed' },
   { label: 'Shipped', value: 'shipped' },
+  { label: 'Cancelled', value: 'cancelled' },
 ]
 const statusFilter = computed({
   get: () => status.value ?? 'all',

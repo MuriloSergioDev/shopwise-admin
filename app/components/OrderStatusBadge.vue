@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import type { OrderStatus } from '#shared/types/contracts'
 
-defineProps<{ status: OrderStatus }>()
+const props = defineProps<{ status: OrderStatus }>()
+
+const look = computed(
+  () =>
+    ({
+      placed: { label: 'To ship', color: 'warning' },
+      shipped: { label: 'Shipped', color: 'success' },
+      cancelled: { label: 'Cancelled', color: 'error' },
+    })[props.status] as { label: string; color: 'warning' | 'success' | 'error' },
+)
 </script>
 
 <template>
-  <UBadge
-    :label="status === 'shipped' ? 'Shipped' : 'To ship'"
-    :color="status === 'shipped' ? 'success' : 'warning'"
-    variant="subtle"
-  />
+  <UBadge :label="look.label" :color="look.color" variant="subtle" />
 </template>

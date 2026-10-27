@@ -129,7 +129,7 @@ describe('admin-only API', () => {
   const routes: Array<[string, string, unknown?]> = [
     ['GET', '/api/catalog/categories'],
     ['GET', '/api/catalog/products'],
-    ['GET', `/api/catalog/products/${product.slug}`],
+    ['GET', `/api/catalog/products/${product.id}`],
     ['POST', '/api/catalog/products', { name: 'Tee', categoryId: 'c', variants: [{ sku: 'S', name: 'S' }] }],
     ['POST', `/api/catalog/products/${product.id}/publish`],
     ['PATCH', '/api/catalog/variants/01variant-m', { active: false }],
@@ -167,23 +167,37 @@ describe('admin-only API', () => {
 })
 
 describe('catalog', () => {
-  it('lists categories and searches products with the admin token, dropping unknown filters', async () => {
+  it('lists categories and products from the admin listing, drafts included, dropping unknown filters', async () => {
     const browser = await signedIn()
 
     expect((await browser.request('/api/catalog/categories')).status).toBe(200)
-    const response = await browser.request('/api/catalog/products?q=tee&page=2&sort=price')
+    const response = await browser.request(
+      '/api/catalog/products?q=tee&status=draft&category=apparel&page=2&sort=price',
+    )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data[0].slug).toBe(product.slug)
-    const call = callsTo('GET', '/api/products')[0]!
-    expect(Object.fromEntries(call.query)).toEqual({ q: 'tee', page: '2' })
+    expect((await response.json()).data[0]).toMatchObject({ slug: product.slug, status: 'draft', variantCount: 2 })
+    expect(callsTo('GET', '/api/products')).toHaveLength(0)
+    const call = callsTo('GET', '/api/admin/products')[0]!
+    expect(Object.fromEntries(call.query)).toEqual({ q: 'tee', status: 'draft', category: 'apparel', page: '2' })
     expect(call.headers.authorization).toBe(`Bearer access-${lastIssued()}`)
   })
 
-  it('shows a product and passes a missing one through as 404', async () => {
+  it('rejects an unknown product status without calling catalog', async () => {
     const browser = await signedIn()
 
-    expect((await (await browser.request(`/api/catalog/products/${product.slug}`)).json()).data.id).toBe(product.id)
+    expect((await browser.request('/api/catalog/products?status=archived')).status).toBe(400)
+    expect(upstream.calls).toHaveLength(0)
+  })
+
+  it('shows a product by id from the admin read, and passes a missing one through as 404', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request(`/api/catalog/products/${product.id}`)
+    expect((await response.json()).data).toMatchObject({ id: product.id, status: 'draft' })
+    expect(callsTo('GET', `/api/admin/products/${product.id}`)[0]?.headers.authorization).toBe(
+      `Bearer access-${lastIssued()}`,
+    )
     expect((await browser.request('/api/catalog/products/missing')).status).toBe(404)
   })
 
@@ -352,10 +366,13 @@ describe('orders', () => {
     expect(call.headers.authorization).toBe(`Bearer access-${lastIssued()}`)
   })
 
-  it('rejects an unknown status without calling orders', async () => {
+  it('filters by the cancelled status and rejects an unknown one without calling orders', async () => {
     const browser = await signedIn()
 
-    expect((await browser.request('/api/orders?status=cancelled')).status).toBe(400)
+    expect((await browser.request('/api/orders?status=cancelled')).status).toBe(200)
+    expect(callsTo('GET', '/api/admin/orders')[0]!.query.get('status')).toBe('cancelled')
+    upstream.calls.length = 0
+    expect((await browser.request('/api/orders?status=refunded')).status).toBe(400)
     expect(upstream.calls).toHaveLength(0)
   })
 

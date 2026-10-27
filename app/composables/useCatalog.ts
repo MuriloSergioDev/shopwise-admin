@@ -9,17 +9,17 @@ export function useCategories() {
   })
 }
 
-/** Published products matching `query` (usually `route.query`); refetches when it changes. */
-export function useProductSearch(query: MaybeRefOrGetter<LocationQuery | Record<string, string | number>>) {
+/** Products matching `query` (usually `route.query`), drafts included, newest first; refetches when it changes. */
+export function useProductList(query: MaybeRefOrGetter<LocationQuery | Record<string, string | number>>) {
   return useFetch('/api/catalog/products', {
-    key: 'catalog-product-search',
+    key: 'catalog-product-list',
     query: computed(() => toValue(query)),
   })
 }
 
-export function useProduct(slug: MaybeRefOrGetter<string>) {
-  return useFetch(() => `/api/catalog/products/${encodeURIComponent(toValue(slug))}`, {
-    key: () => `catalog-product-${toValue(slug)}`,
+export function useProduct(id: MaybeRefOrGetter<string>) {
+  return useFetch(() => `/api/catalog/products/${encodeURIComponent(toValue(id))}`, {
+    key: () => `catalog-product-${toValue(id)}`,
     transform: (response) => response.data,
   })
 }

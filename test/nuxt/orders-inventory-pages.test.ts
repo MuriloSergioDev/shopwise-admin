@@ -122,6 +122,16 @@ describe('order page', () => {
     expect(page.find('[data-test="shipment"]').text()).toContain('UPS · 1Z999')
   })
 
+  it('shows a cancelled order without the shipping form', async () => {
+    registerEndpoint('/api/orders/01order', () => ({ data: { ...order(), status: 'cancelled' } }))
+
+    const page = await mountSuspended(OrderPage, { route: '/orders/01order' })
+
+    expect(page.find('[data-test="cancelled"]').exists()).toBe(true)
+    expect(page.find('[data-test="shipment"] form').exists()).toBe(false)
+    expect(page.text()).toContain('Cancelled')
+  })
+
   it('needs a carrier and a tracking number', async () => {
     let called = false
     registerEndpoint('/api/orders/01order', { method: 'GET', handler: () => ({ data: order() }) })

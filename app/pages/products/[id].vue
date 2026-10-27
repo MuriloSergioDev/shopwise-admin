@@ -2,14 +2,17 @@
 import type { Variant } from '#shared/types/contracts'
 
 const route = useRoute()
-const slug = computed(() => String(route.params.slug))
-const { data: product, error } = await useProduct(slug)
+const id = computed(() => String(route.params.id))
+const { data: product, error } = await useProduct(id)
 
 if (error.value?.statusCode === 404) {
-  throw createError({ statusCode: 404, statusMessage: 'No published product with that slug.', fatal: true })
+  throw createError({ statusCode: 404, statusMessage: 'No product with that id.', fatal: true })
 }
 
 useSeoMeta({ title: () => `${product.value?.name ?? 'Product'} · Shopwise admin` })
+
+const toast = useToast()
+const publishing = ref(false)
 
 // useFetch data is a shallow ref: replace the product rather than mutating it.
 function replaceVariant(updated: Variant) {
@@ -20,6 +23,19 @@ function replaceVariant(updated: Variant) {
     }
   }
 }
+
+async function publish() {
+  publishing.value = true
+  try {
+    product.value = await publishProduct(id.value)
+    toast.add({ title: `${product.value.name} is live`, icon: 'i-lucide-rocket' })
+  } catch (failure) {
+    // Catalog answers 409 when no variant is active.
+    toast.add({ title: errorMessageOf(failure, 'Could not publish.'), color: 'error', icon: 'i-lucide-circle-alert' })
+  } finally {
+    publishing.value = false
+  }
+}
 </script>
 
 <template>
@@ -28,7 +44,14 @@ function replaceVariant(updated: Variant) {
       <PageNavbar :title="product?.name ?? 'Product'">
         <template #right>
           <UButton
-            v-if="product"
+            v-if="product?.status === 'draft'"
+            icon="i-lucide-rocket"
+            label="Publish"
+            :loading="publishing"
+            @click="publish"
+          />
+          <UButton
+            v-else-if="product"
             :to="`${useRuntimeConfig().public.storefrontUrl}/products/${product.slug}`"
             target="_blank"
             color="neutral"
@@ -50,7 +73,7 @@ function replaceVariant(updated: Variant) {
 
       <template v-if="product">
         <div class="flex flex-wrap items-center gap-2 text-sm">
-          <UBadge :label="product.status" :color="product.status === 'published' ? 'success' : 'neutral'" />
+          <ProductStatusBadge :status="product.status" />
           <span class="text-muted">{{ product.category.name }}</span>
           <span class="font-mono text-muted">{{ product.slug }}</span>
         </div>
@@ -58,8 +81,8 @@ function replaceVariant(updated: Variant) {
 
         <UPageCard title="Variants" variant="subtle">
           <VariantTable :variants="product.variants" @updated="replaceVariant" />
-          <p class="text-xs text-muted">
-            Catalog's public read lists active variants only, so a variant you deactivate disappears after a reload.
+          <p v-if="product.status === 'draft'" class="text-xs text-muted">
+            Set prices before publishing: the storefront shows variants without a price as unavailable.
           </p>
         </UPageCard>
       </template>
