@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/MuriloSergioDev/shopwise-admin/compare/v1.0.0...v1.1.0) (2026-10-27)
+
+
+### Features
+
+* list drafts and inactive variants from catalog's admin reads ([84fc0d9](https://github.com/MuriloSergioDev/shopwise-admin/commit/84fc0d9a1c008cea90d85cc91ad1101f4a6ea88f))
+
 ## 1.0.0 (2026-10-27)
 
 
