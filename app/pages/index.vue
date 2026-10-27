@@ -16,11 +16,12 @@ const areas = [
     icon: 'i-lucide-ticket-percent',
     to: '/coupons',
   },
-  { title: 'Orders', description: 'Not wired yet: waits for the orders admin API (P3).', icon: 'i-lucide-receipt' },
+  { title: 'Orders', description: 'Find orders and mark them shipped.', icon: 'i-lucide-receipt', to: '/orders' },
   {
     title: 'Inventory',
-    description: 'Not wired yet: waits for the inventory admin API (P3).',
+    description: 'Check stock levels and record stock counts.',
     icon: 'i-lucide-warehouse',
+    to: '/inventory',
   },
 ]
 </script>
@@ -41,7 +42,6 @@ const areas = [
           :description="area.description"
           :icon="area.icon"
           :to="area.to"
-          :class="{ 'opacity-60': !area.to }"
         />
       </UPageGrid>
     </template>

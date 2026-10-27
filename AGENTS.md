@@ -23,15 +23,22 @@ Nuxt 4 (`app/`, `server/`, `shared/`), Nuxt UI 4 dashboard layout (Tailwind 4), 
 - `server/middleware/admin-session.ts` — the server-side role gate and the page-request refresh.
 - `shared/utils/schemas.ts` — zod input schemas mirroring the contracts; the BFF and the forms both use them.
 - `app/composables/` — `useFetch` wrappers with stable keys plus the write actions (`createProduct`, `setPrice`, …).
-- `app/pages/` — `index` (overview), `products/index`, `products/new`, `products/[slug]`, `coupons`, `login`.
+- `app/pages/` — `index` (overview), `products/index`, `products/new`, `products/[slug]`, `coupons`, `orders/index`,
+  `orders/[id]` (mark shipped), `inventory/index` (counts in place, low-stock filter), `inventory/[sku]`
+  (reservations), `login`. List pages keep their filters in the URL query.
   `app/middleware/auth.global.ts` sends signed-out visitors to `/login` (navigation only, not security).
-- `app/utils/navigation-items.ts` — the sidebar. Orders and Inventory are disabled placeholders.
+- `app/utils/navigation-items.ts` — the sidebar.
+- `server/utils/query.ts` — `compactQuery` drops unset filters before they go to a service.
 
 BFF routes (all admin-only except `/api/auth/*`):
 `POST /api/auth/{login,logout}`, `GET /api/catalog/categories`, `GET /api/catalog/products?q=&page=&perPage=`,
 `GET /api/catalog/products/{slug}`, `POST /api/catalog/products`, `POST /api/catalog/products/{id}/publish`,
 `PATCH /api/catalog/variants/{id}`, `GET /api/pricing/prices?skus[]=`, `PUT /api/pricing/prices/{sku}`,
-`GET|POST /api/pricing/coupons`, `DELETE /api/pricing/coupons/{code}` (pricing deactivates it).
+`GET|POST /api/pricing/coupons`, `DELETE /api/pricing/coupons/{code}` (pricing deactivates it),
+`GET /api/orders?status=&q=&page=&perPage=`, `GET /api/orders/{id}`, `PUT /api/orders/{id}/shipment`
+(`{carrier, trackingNumber}`; the same values again are a no-op, different ones 409), `GET /api/inventory/stock?q=&lowStock=&page=&perPage=`,
+`GET /api/inventory/stock/{sku}` (with open reservations), `PUT /api/inventory/stock/{sku}` (`{onHand}`, a count,
+not a delta; below the reserved units is a 422 on `onHand`).
 
 ## Rules
 
@@ -49,8 +56,8 @@ BFF routes (all admin-only except `/api/auth/*`):
 - `useFetch` data is a shallow ref: replace objects (`data.value = { ...data.value, … }`), don't mutate them.
 - Money is integer minor units. Forms take major units: `parseMoney` / `toMoneyInput` / `formatMoney`
   (`shared/utils/money.ts`). The store sells in USD only.
-- **Don't fake missing APIs.** Orders and Inventory stay disabled until their admin contracts exist in
-  `shopwise-contracts`; wire them through `serviceFetch` like the others.
+- **Writes must be safe to repeat** (`asAdmin` retries once after a 401): every admin write here is a set, not an
+  increment. Keep it that way, or don't route the write through the retry.
 
 ## Known gaps (catalog contract)
 
@@ -62,9 +69,11 @@ catalog contract and service, then point the BFF's list/detail routes at them.
 
 ## Run
 
-Under Tilt from `shopwise-platform` once it is wired (see README). Alone: `pnpm dev` → http://localhost:3001 (needs
-identity :8101, catalog :8102, pricing :8104; override with `NUXT_IDENTITY_URL` / `NUXT_CATALOG_URL` /
-`NUXT_PRICING_URL`; `NUXT_PUBLIC_STOREFRONT_URL` for the "View in store" link). Sign in with identity's seeded
+Under Tilt from `shopwise-platform`: `tilt up -- --only=identity,catalog,pricing,inventory,orders,admin` (Tilt runs
+`pnpm dev` here, :3001). Seed inventory and orders once per cluster (`kubectl exec deploy/<svc>-http -- php artisan
+db:seed --force`). Alone: `pnpm dev` → http://localhost:3001 (needs
+identity :8101, catalog :8102, inventory :8103, pricing :8104, orders :8108; override with `NUXT_IDENTITY_URL` /
+`NUXT_CATALOG_URL` / `NUXT_INVENTORY_URL` / `NUXT_PRICING_URL` / `NUXT_ORDERS_URL`; `NUXT_PUBLIC_STOREFRONT_URL` for the "View in store" link). Sign in with identity's seeded
 `admin@shopwise.test`.
 
 ## Checks
@@ -74,7 +83,7 @@ identity :8101, catalog :8102, pricing :8104; override with `NUXT_IDENTITY_URL` 
 - `test/unit` — plain Node, pure helpers (`#shared` is aliased in `vitest.config.ts`).
 - `test/nuxt` — Nuxt environment, pages (`mountSuspended`, `registerEndpoint`); `helpers.ts` signs the app in.
 - `test/bff` — builds the app and calls the real Nitro server against in-memory fakes of identity, catalog and
-  pricing (`test/bff/fake-services.ts` on `upstream.ts`). Every BFF route gets a test, including the 401 gate, the
+  pricing, inventory and orders (`test/bff/fake-services.ts` on `upstream.ts`). Every BFF route gets a test, including the 401 gate, the
   non-admin login, the role check on refresh and the refresh behaviour.
 
 Install note: `pnpm-workspace.yaml` allowlists build scripts; `@shopwise/contracts` is set to `false` so pnpm doesn't

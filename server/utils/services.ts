@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { ofetch } from 'ofetch'
 
-export type Service = 'identity' | 'catalog' | 'pricing'
+export type Service = 'identity' | 'catalog' | 'pricing' | 'inventory' | 'orders'
 
 interface ServiceFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -27,6 +27,8 @@ export async function serviceFetch<T>(
     identity: config.identityUrl,
     catalog: config.catalogUrl,
     pricing: config.pricingUrl,
+    inventory: config.inventoryUrl,
+    orders: config.ordersUrl,
   }[service]
 
   const headers: Record<string, string> = { accept: 'application/json' }

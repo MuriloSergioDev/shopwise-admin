@@ -1,4 +1,4 @@
-// In-memory fakes of identity, catalog and pricing, shaped by their OpenAPI contracts. Tests tweak `state` to
+// In-memory fakes of identity, catalog, pricing, inventory and orders, shaped by their OpenAPI contracts. Tests tweak `state` to
 // provoke failures; `reset()` runs before each test.
 import type { UpstreamCall, UpstreamReply } from './upstream'
 
@@ -62,6 +62,9 @@ export const state = {
   reusedRefreshTokens: [] as string[],
   revoked: [] as string[],
   published: false,
+  /** The fake order's shipment, once marked shipped. */
+  shipment: null as null | { carrier: string; trackingNumber: string; shippedAt: string },
+  onHand: 50,
 }
 
 // Token numbers keep counting across tests: the BFF's refresh coordinator outlives a test.
@@ -79,6 +82,8 @@ export function reset() {
   state.reusedRefreshTokens = []
   state.revoked = []
   state.published = false
+  state.shipment = null
+  state.onHand = 50
 }
 
 /** The number in the last issued `access-N` / `refresh-N` pair. */
@@ -250,11 +255,149 @@ function pricing(call: UpstreamCall): UpstreamReply | undefined {
   }
 }
 
+export const order = {
+  id: '01order',
+  number: 'SW-000001',
+  customerId: customer.id,
+  email: customer.email,
+  itemCount: 2,
+  currency: 'USD',
+  total: 9000,
+  placedAt: '2026-10-26T00:00:00Z',
+  checkoutId: '01checkout',
+  paymentId: '01payment',
+  lines: [
+    {
+      sku: 'TEE-BLK-M',
+      productName: 'Merino Crew Tee',
+      variantName: 'Black / M',
+      quantity: 2,
+      unitAmount: 4500,
+      lineAmount: 9000,
+    },
+  ],
+  subtotal: 9000,
+  discount: 0,
+  couponCode: null,
+  shippingAddress: {
+    name: 'Ada',
+    line1: '1 Main St',
+    line2: null,
+    city: 'Springfield',
+    region: null,
+    postalCode: '12345',
+    country: 'US',
+  },
+}
+
+const currentOrder = () => ({ ...order, status: state.shipment ? 'shipped' : 'placed', shipment: state.shipment })
+const {
+  checkoutId: _c,
+  paymentId: _p,
+  lines: _l,
+  subtotal: _s,
+  discount: _d,
+  couponCode: _cc,
+  shippingAddress: _a,
+  ...summary
+} = order
+
+const stockLevel = () => ({
+  sku: 'TEE-BLK-M',
+  onHand: state.onHand,
+  reserved: 2,
+  available: state.onHand - 2,
+  updatedAt: '2026-10-26T00:00:00Z',
+})
+
+function orders(call: UpstreamCall): UpstreamReply | undefined {
+  if (!call.path.startsWith('/api/admin/orders')) {
+    return undefined
+  }
+  const denied = adminGuard(call)
+  if (denied) {
+    return denied
+  }
+  const route = `${call.method} ${call.path}`
+  if (route === 'GET /api/admin/orders') {
+    const status = call.query.get('status')
+    const current = { ...summary, status: currentOrder().status }
+
+    return ok({
+      data: status && status !== current.status ? [] : [current],
+      meta: { page: Number(call.query.get('page') ?? 1), perPage: 25, total: 1, lastPage: 1 },
+    })
+  }
+  if (route === `GET /api/admin/orders/${order.id}`) {
+    return ok({ data: currentOrder() })
+  }
+  if (route === `PUT /api/admin/orders/${order.id}/shipment`) {
+    const carrier = String(call.body?.carrier)
+    const trackingNumber = String(call.body?.trackingNumber)
+    if (state.shipment && (state.shipment.carrier !== carrier || state.shipment.trackingNumber !== trackingNumber)) {
+      return {
+        status: 409,
+        body: { message: 'Order SW-000001 was already shipped with a different carrier or tracking number.' },
+      }
+    }
+    state.shipment ??= { carrier, trackingNumber, shippedAt: '2026-10-27T00:00:00Z' }
+
+    return ok({ data: currentOrder() })
+  }
+  if (call.method === 'GET' || call.method === 'PUT') {
+    return { status: 404, body: { message: 'Unknown order.' } }
+  }
+}
+
+function inventory(call: UpstreamCall): UpstreamReply | undefined {
+  if (!call.path.startsWith('/api/admin/stock')) {
+    return undefined
+  }
+  const denied = adminGuard(call)
+  if (denied) {
+    return denied
+  }
+  if (call.method === 'GET' && call.path === '/api/admin/stock') {
+    return ok({ data: [stockLevel()], meta: { page: 1, perPage: 25, total: 1, lastPage: 1 } })
+  }
+  const sku = decodeURIComponent(call.path.replace('/api/admin/stock/', ''))
+  if (sku !== 'TEE-BLK-M') {
+    return { status: 404, body: { message: 'Unknown SKU.' } }
+  }
+  if (call.method === 'GET') {
+    return ok({
+      data: {
+        ...stockLevel(),
+        reservations: [
+          { id: '01res', checkoutId: '01checkout', quantity: 2, status: 'held', expiresAt: '2026-10-27T00:15:00Z' },
+        ],
+      },
+    })
+  }
+  if (call.method === 'PUT') {
+    const onHand = Number(call.body?.onHand)
+    if (onHand < 2) {
+      return {
+        status: 422,
+        body: {
+          message: 'The on hand count cannot be below the 2 reserved units.',
+          errors: { onHand: ['The on hand count cannot be below the 2 reserved units.'] },
+        },
+      }
+    }
+    state.onHand = onHand
+
+    return ok({ data: stockLevel() })
+  }
+}
+
 export async function reply(call: UpstreamCall): Promise<UpstreamReply> {
   return (
     (await identity(call)) ??
     catalog(call) ??
-    pricing(call) ?? {
+    pricing(call) ??
+    orders(call) ??
+    inventory(call) ?? {
       status: 500,
       body: { message: 'SQLSTATE[42P01]: relation "coupons" does not exist' },
     }

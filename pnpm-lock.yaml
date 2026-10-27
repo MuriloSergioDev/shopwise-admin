@@ -211,7 +211,7 @@ importers:
         version: 4.3.4(115091bfb5ab597eb3ce3936227456b6)
       '@shopwise/contracts':
         specifier: github:MuriloSergioDev/shopwise-contracts
-        version: https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/cba4cfde46265e0eb74bdcb42ee510e5429dc8bd
+        version: https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/c912dd58f0e2a1e82ed7f1e43452888307f0826d
       '@vue/test-utils':
         specifier: ^2.5.1
         version: 2.5.1(@vue/compiler-dom@3.5.44)(@vue/server-renderer@3.5.44)(vue@3.5.44(typescript@5.9.3))
@@ -1676,8 +1676,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shopwise/contracts@https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/cba4cfde46265e0eb74bdcb42ee510e5429dc8bd':
-    resolution: {gitHosted: true, integrity: sha512-G0zCy82PetmB6lPoJBbeZO+tDAG6Jl+rmDYJrvYZumErNon9KfErEPagOSopny2XdVAE628gA4bUR4J87w4r+A==, tarball: https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/cba4cfde46265e0eb74bdcb42ee510e5429dc8bd}
+  '@shopwise/contracts@https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/c912dd58f0e2a1e82ed7f1e43452888307f0826d':
+    resolution: {gitHosted: true, integrity: sha512-jDFi5jJ79BUQlnTnsbyKp1TgKMocre8KWLL5/A54TAc3z2PByYFney7BLraEnqP0FEa2j4mSELv5tHS3R0REHw==, tarball: https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/c912dd58f0e2a1e82ed7f1e43452888307f0826d}
     version: 0.1.0
 
   '@simple-libs/child-process-utils@2.0.0':
@@ -7451,7 +7451,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.65.0':
     optional: true
 
-  '@shopwise/contracts@https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/cba4cfde46265e0eb74bdcb42ee510e5429dc8bd': {}
+  '@shopwise/contracts@https://codeload.github.com/MuriloSergioDev/shopwise-contracts/tar.gz/c912dd58f0e2a1e82ed7f1e43452888307f0826d': {}
 
   '@simple-libs/child-process-utils@2.0.0':
     dependencies:

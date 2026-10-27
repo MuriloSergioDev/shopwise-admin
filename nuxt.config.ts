@@ -9,11 +9,13 @@ export default defineNuxtConfig({
   devServer: { port: 3001 },
 
   // Service base URLs are server-only: the browser only ever talks to this BFF.
-  // Override with NUXT_IDENTITY_URL / NUXT_CATALOG_URL / NUXT_PRICING_URL.
+  // Override with NUXT_IDENTITY_URL / NUXT_CATALOG_URL / NUXT_PRICING_URL / NUXT_INVENTORY_URL / NUXT_ORDERS_URL.
   runtimeConfig: {
     identityUrl: 'http://localhost:8101',
     catalogUrl: 'http://localhost:8102',
     pricingUrl: 'http://localhost:8104',
+    inventoryUrl: 'http://localhost:8103',
+    ordersUrl: 'http://localhost:8108',
     // Cookies are per host, not per port: without its own name this session would overwrite the storefront's
     // (both run on localhost).
     session: { name: 'shopwise-admin-session' },

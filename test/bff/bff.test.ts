@@ -1,11 +1,11 @@
-// Builds the app and runs the real Nitro server against fake identity, catalog and pricing services.
+// Builds the app and runs the real Nitro server against fake identity, catalog, pricing, inventory and orders.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { fetch, setup } from '@nuxt/test-utils/e2e'
 import { startUpstream, type UpstreamCall } from './upstream'
-import { PASSWORD, admin, coupon, customer, lastIssued, product, reply, reset, state } from './fake-services'
+import { PASSWORD, admin, coupon, customer, lastIssued, order, product, reply, reset, state } from './fake-services'
 
 const upstream = await startUpstream(reply)
-for (const service of ['IDENTITY', 'CATALOG', 'PRICING']) {
+for (const service of ['IDENTITY', 'CATALOG', 'PRICING', 'INVENTORY', 'ORDERS']) {
   process.env[`NUXT_${service}_URL`] = upstream.url
 }
 process.env.NUXT_SESSION_PASSWORD = 'test-session-password-at-least-32-chars'
@@ -138,6 +138,12 @@ describe('admin-only API', () => {
     ['GET', '/api/pricing/coupons'],
     ['POST', '/api/pricing/coupons', { code: 'X', type: 'percent', value: 5 }],
     ['DELETE', `/api/pricing/coupons/${coupon.code}`],
+    ['GET', '/api/orders'],
+    ['GET', `/api/orders/${order.id}`],
+    ['PUT', `/api/orders/${order.id}/shipment`, { carrier: 'UPS', trackingNumber: '1Z' }],
+    ['GET', '/api/inventory/stock'],
+    ['GET', '/api/inventory/stock/TEE-BLK-M'],
+    ['PUT', '/api/inventory/stock/TEE-BLK-M', { onHand: 10 }],
   ]
 
   it.each(routes)('%s %s answers 401 without a session and never calls a service', async (method, path, body) => {
@@ -330,6 +336,114 @@ describe('pricing', () => {
 
     const duplicate = await browser.post('/api/pricing/coupons', { code: coupon.code, type: 'percent', value: 10 })
     expect(duplicate.status).toBe(422)
+  })
+})
+
+describe('orders', () => {
+  it('lists orders with the admin token, forwarding filters and dropping unknown ones', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request('/api/orders?status=placed&q=SW-0&page=2&sort=total')
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.map((summary: { number: string }) => summary.number)).toEqual([order.number])
+    const call = callsTo('GET', '/api/admin/orders')[0]!
+    expect(Object.fromEntries(call.query)).toEqual({ status: 'placed', q: 'SW-0', page: '2' })
+    expect(call.headers.authorization).toBe(`Bearer access-${lastIssued()}`)
+  })
+
+  it('rejects an unknown status without calling orders', async () => {
+    const browser = await signedIn()
+
+    expect((await browser.request('/api/orders?status=cancelled')).status).toBe(400)
+    expect(upstream.calls).toHaveLength(0)
+  })
+
+  it('shows an order and passes a missing one through as 404', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request(`/api/orders/${order.id}`)
+    expect((await response.json()).data).toMatchObject({ number: order.number, status: 'placed', shipment: null })
+    expect((await browser.request('/api/orders/missing')).status).toBe(404)
+  })
+
+  it('marks an order shipped, accepts the same shipment again and passes a conflicting one through', async () => {
+    const browser = await signedIn()
+    const shipment = { carrier: 'UPS', trackingNumber: '1Z999' }
+
+    const first = await browser.request(`/api/orders/${order.id}/shipment`, { method: 'PUT', body: shipment })
+    expect(first.status).toBe(200)
+    expect((await first.json()).data).toMatchObject({ status: 'shipped', shipment })
+    expect(callsTo('PUT', `/api/admin/orders/${order.id}/shipment`)[0]?.body).toEqual(shipment)
+
+    const again = await browser.request(`/api/orders/${order.id}/shipment`, { method: 'PUT', body: shipment })
+    expect(again.status).toBe(200)
+
+    const other = await browser.request(`/api/orders/${order.id}/shipment`, {
+      method: 'PUT',
+      body: { carrier: 'DHL', trackingNumber: 'X' },
+    })
+    expect(other.status).toBe(409)
+    expect((await other.json()).statusMessage).toMatch(/already shipped/)
+  })
+
+  it('rejects a blank carrier before calling orders', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request(`/api/orders/${order.id}/shipment`, {
+      method: 'PUT',
+      body: { carrier: ' ', trackingNumber: '1Z' },
+    })
+
+    expect(response.status).toBe(400)
+    expect(upstream.calls).toHaveLength(0)
+  })
+})
+
+describe('inventory', () => {
+  it('lists stock levels, forwarding the SKU prefix and the low-stock threshold', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request('/api/inventory/stock?q=TEE&lowStock=5&perPage=50')
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0]).toMatchObject({ sku: 'TEE-BLK-M', onHand: 50, reserved: 2, available: 48 })
+    expect(Object.fromEntries(callsTo('GET', '/api/admin/stock')[0]!.query)).toEqual({
+      q: 'TEE',
+      lowStock: '5',
+      perPage: '50',
+    })
+  })
+
+  it('shows a SKU with its reservations and passes an unknown one through as 404', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request('/api/inventory/stock/TEE-BLK-M')
+    expect((await response.json()).data.reservations).toHaveLength(1)
+    expect((await browser.request('/api/inventory/stock/NOPE')).status).toBe(404)
+  })
+
+  it('sets the on-hand count and passes the reserved-units 422 through with its field error', async () => {
+    const browser = await signedIn()
+
+    const response = await browser.request('/api/inventory/stock/TEE-BLK-M', { method: 'PUT', body: { onHand: 12 } })
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toMatchObject({ onHand: 12, available: 10 })
+    expect(callsTo('PUT', '/api/admin/stock/TEE-BLK-M')[0]?.body).toEqual({ onHand: 12 })
+
+    const below = await browser.request('/api/inventory/stock/TEE-BLK-M', { method: 'PUT', body: { onHand: 1 } })
+    expect(below.status).toBe(422)
+    expect((await below.json()).data.errors.onHand).toHaveLength(1)
+  })
+
+  it('rejects a negative or fractional count before calling inventory', async () => {
+    const browser = await signedIn()
+
+    for (const onHand of [-1, 2.5, '3']) {
+      const response = await browser.request('/api/inventory/stock/TEE-BLK-M', { method: 'PUT', body: { onHand } })
+      expect(response.status).toBe(400)
+    }
+    expect(upstream.calls).toHaveLength(0)
   })
 })
 

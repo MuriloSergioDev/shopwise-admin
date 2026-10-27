@@ -1,5 +1,5 @@
 // View-model types shared by the app and the BFF, taken from the service contracts.
-import type { CatalogApi, IdentityApi, PricingApi } from '@shopwise/contracts'
+import type { CatalogApi, IdentityApi, InventoryApi, OrdersApi, PricingApi } from '@shopwise/contracts'
 
 type CatalogSchemas = CatalogApi.components['schemas']
 
@@ -18,3 +18,13 @@ export type Customer = IdentityApi.components['schemas']['Customer']
 export type Price = PricingApi.components['schemas']['Price']
 export type Coupon = PricingApi.components['schemas']['Coupon']
 export type CouponInput = PricingApi.components['schemas']['CouponInput']
+
+export type OrderStatus = OrdersApi.components['schemas']['OrderStatus']
+export type OrderSummary = OrdersApi.components['schemas']['OrderSummary']
+export type Order = OrdersApi.components['schemas']['Order']
+export type OrderPage = OrdersApi.components['schemas']['OrderPage']
+
+export type StockLevel = InventoryApi.components['schemas']['StockLevel']
+export type StockLevelPage = InventoryApi.operations['listStockLevels']['responses'][200]['content']['application/json']
+export type StockLevelDetail =
+  InventoryApi.operations['getStockLevel']['responses'][200]['content']['application/json']['data']

@@ -62,3 +62,12 @@ export const couponInputSchema = z
   })
 
 export const skuSchema = z.string().min(1).max(64)
+
+export const shipmentInputSchema = z.object({
+  carrier: z.string().trim().min(1, 'Enter a carrier').max(50),
+  trackingNumber: z.string().trim().min(1, 'Enter a tracking number').max(100),
+})
+
+export const stockInputSchema = z.object({
+  onHand: z.number().int('Whole units only').min(0, 'Stock cannot be negative').max(1_000_000),
+})
